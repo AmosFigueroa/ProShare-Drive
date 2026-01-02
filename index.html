@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProShare Drive Portal</title>
+  
+  <!-- Tailwind CSS & Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0ea5e9',
+              600: '#0284c7', // Primary Blue
+              700: '#0369a1',
+              900: '#0c4a6e',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body { background-color: #f1f5f9; }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    }
+    .loader {
+      border: 3px solid #e2e8f0;
+      border-top: 3px solid #0284c7;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- ===============================
+       1. HALAMAN LOGIN ADMIN
+       =============================== -->
+  <div id="page-login" class="hidden min-h-screen w-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-200 to-slate-300">
+    <div class="glass-panel w-full max-w-md rounded-2xl p-8 shadow-2xl">
+      <div class="text-center mb-6">
+        <div class="w-14 h-14 bg-brand-600 text-white rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-brand-500/40">
+          <i class="fas fa-shield-halved text-2xl"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-800">Admin Login</h1>
+        <p class="text-slate-500 text-sm">Verifikasi email untuk mengelola link.</p>
+      </div>
+
+      <!-- Step 1: Input Email -->
+      <div id="login-step-1">
+        <label class="block text-sm font-medium text-slate-700 mb-1">Email Terdaftar</label>
+        <div class="relative mb-4">
+          <i class="fas fa-envelope absolute left-3 top-3 text-slate-400"></i>
+          <input type="email" id="admin-email" class="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:outline-none transition" placeholder="email@gmail.com">
+        </div>
+        <button onclick="sendOtp()" id="btn-send-otp" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-lg transition shadow-lg flex justify-center items-center gap-2">
+          <span>Kirim Kode OTP</span>
+        </button>
+      </div>
+
+      <!-- Step 2: Input OTP -->
+      <div id="login-step-2" class="hidden">
+        <div class="bg-blue-50 text-blue-700 p-3 rounded-lg text-xs mb-4 flex items-center">
+          <i class="fas fa-info-circle mr-2"></i> Kode OTP telah dikirim ke email Anda.
+        </div>
+        <label class="block text-sm font-medium text-slate-700 mb-1">Kode OTP (6 Digit)</label>
+        <input type="text" id="otp-code" maxlength="6" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 focus:outline-none transition mb-4 text-center text-xl tracking-widest font-mono" placeholder="000000">
+        
+        <button onclick="verifyOtp()" id="btn-verify-otp" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-lg transition shadow-lg mb-2">
+          Verifikasi Masuk
+        </button>
+        <button onclick="resetLogin()" class="w-full text-slate-500 hover:text-slate-700 text-sm py-2">
+          Ganti Email
+        </button>
+      </div>
+
+      <p id="login-error" class="text-red-500 text-xs text-center mt-3 hidden"></p>
+    </div>
+  </div>
+
+  <!-- ===============================
+       2. HALAMAN DASHBOARD ADMIN
+       =============================== -->
+  <div id="page-admin" class="hidden min-h-screen bg-slate-50">
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-10">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-2 font-bold text-slate-800">
+          <i class="fas fa-user-shield text-brand-600"></i> Admin Panel
+        </div>
+        <button onclick="logout()" class="text-sm text-red-500 hover:text-red-700 font-medium">Keluar</button>
+      </div>
+    </nav>
+
+    <main class="max-w-3xl mx-auto p-6 mt-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+        <h2 class="text-xl font-bold mb-6 text-slate-800">Buat Link Share Baru</h2>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nama Client / Project</label>
+            <input type="text" id="cfg-client-name" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Contoh: PT. Maju Jaya">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ID Folder Google Drive</label>
+            <input type="text" id="cfg-folder-id" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none" placeholder="1vKz...">
+            <p class="text-xs text-slate-400 mt-1">Pastikan folder diatur ke "Anyone with the link can view".</p>
+          </div>
+
+          <button onclick="generateLink()" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-brand-500/20 transition transform hover:scale-[1.01]">
+            <i class="fas fa-link mr-2"></i> Generate Link
+          </button>
+        </div>
+
+        <!-- Result Area -->
+        <div id="result-area" class="mt-8 hidden border-t border-slate-100 pt-6">
+          <p class="text-sm font-medium text-slate-600 mb-2">Link Khusus Client:</p>
+          <div class="flex gap-2">
+            <input type="text" id="generated-url" readonly class="w-full bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 font-mono">
+            <button onclick="copyLink()" class="bg-white border border-slate-300 hover:bg-slate-50 px-4 rounded-lg text-slate-600">
+              <i class="fas fa-copy"></i>
+            </button>
+          </div>
+          <div class="mt-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm flex items-center">
+            <i class="fas fa-check-circle mr-2"></i> Link siap dibagikan! Client tidak perlu login.
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ===============================
+       3. HALAMAN CLIENT (VIEW FILES)
+       =============================== -->
+  <div id="page-client" class="hidden min-h-screen bg-slate-50 flex flex-col">
+    <!-- Header -->
+    <header class="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-brand-500/20">
+            <i class="fab fa-google-drive text-xl"></i>
+          </div>
+          <div>
+            <h1 class="font-bold text-lg leading-tight text-slate-900" id="client-title">Shared Folder</h1>
+            <p class="text-xs text-slate-500 font-medium">Secure File Transfer</p>
+          </div>
+        </div>
+        <div class="text-xs text-slate-400 font-medium bg-slate-100 px-3 py-1 rounded-full">
+          <i class="fas fa-shield-alt text-green-500 mr-1"></i> Verified
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-grow w-full max-w-6xl mx-auto px-4 py-8">
+      <!-- Loading State -->
+      <div id="client-loading" class="flex flex-col items-center justify-center py-20">
+        <div class="loader w-10 h-10 mb-4"></div>
+        <p class="text-slate-500 animate-pulse">Menyiapkan file Anda...</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="client-error" class="hidden bg-red-50 border border-red-200 rounded-xl p-6 text-center max-w-lg mx-auto">
+        <i class="fas fa-exclamation-triangle text-red-500 text-3xl mb-3"></i>
+        <h3 class="font-bold text-red-700">Link Tidak Valid</h3>
+        <p class="text-red-600 text-sm mt-1">Link mungkin rusak atau folder sudah tidak dapat diakses.</p>
+      </div>
+
+      <!-- File Grid -->
+      <div id="file-grid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <!-- Files Injected JS -->
+      </div>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+      &copy; 2024 Secure Share System. Powered by Google.
+    </footer>
+  </div>
+
+  <!-- LOGIC SCRIPT -->
+  <script>
+    // MODE DARI SERVER
+    // (Akan diinject oleh Google Script saat doGet)
+    const APP_MODE = "<?= mode ?>"; 
+    const CLIENT_CONFIG_ENC = "<?= clientConfig ?>";
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwuFWkmRl1NPq19Fu7tPKLRdFM6Yt2TybQ627BHqxYjlz6MH8lEPUEtTqbj9QEyLCe-XQ/exec";
+
+    /* ================= INITIALIZATION ================= */
+    window.onload = function() {
+      if (APP_MODE === 'CLIENT' && CLIENT_CONFIG_ENC) {
+        initClientMode();
+      } else {
+        initAdminMode();
+      }
+    };
+
+    /* ================= ADMIN LOGIC ================= */
+    function initAdminMode() {
+      document.getElementById('page-login').classList.remove('hidden');
+    }
+
+    function sendOtp() {
+      const email = document.getElementById('admin-email').value;
+      const btn = document.getElementById('btn-send-otp');
+      const err = document.getElementById('login-error');
+      
+      if (!email) return;
+
+      btn.innerHTML = '<div class="loader w-4 h-4 border-white/30 border-t-white mr-2"></div> Sending...';
+      btn.disabled = true;
+      err.classList.add('hidden');
+
+      google.script.run
+        .withSuccessHandler(() => {
+          document.getElementById('login-step-1').classList.add('hidden');
+          document.getElementById('login-step-2').classList.remove('hidden');
+        })
+        .withFailureHandler((e) => {
+          err.textContent = e.message;
+          err.classList.remove('hidden');
+          btn.innerHTML = 'Kirim Kode OTP';
+          btn.disabled = false;
+        })
+        .sendLoginOtp(email);
+    }
+
+    function verifyOtp() {
+      const email = document.getElementById('admin-email').value;
+      const code = document.getElementById('otp-code').value;
+      const btn = document.getElementById('btn-verify-otp');
+      const err = document.getElementById('login-error');
+
+      btn.innerHTML = 'Verifikasi...';
+      btn.disabled = true;
+
+      google.script.run
+        .withSuccessHandler(() => {
+          document.getElementById('page-login').classList.add('hidden');
+          document.getElementById('page-admin').classList.remove('hidden');
+        })
+        .withFailureHandler((e) => {
+          err.textContent = e.message;
+          err.classList.remove('hidden');
+          btn.innerHTML = 'Verifikasi Masuk';
+          btn.disabled = false;
+        })
+        .verifyLoginOtp(email, code);
+    }
+
+    function resetLogin() {
+      document.getElementById('login-step-2').classList.add('hidden');
+      document.getElementById('login-step-1').classList.remove('hidden');
+      document.getElementById('btn-send-otp').innerHTML = 'Kirim Kode OTP';
+      document.getElementById('btn-send-otp').disabled = false;
+      document.getElementById('otp-code').value = '';
+    }
+
+    function generateLink() {
+      const folderId = document.getElementById('cfg-folder-id').value;
+      const name = document.getElementById('cfg-client-name').value;
+      
+      if(!folderId || !name) {
+        alert("Mohon lengkapi semua data");
+        return;
+      }
+
+      // Create Config Object
+      const config = { id: folderId, name: name };
+      // Encode to Base64 to make url parameter
+      const encoded = btoa(JSON.stringify(config));
+      const fullUrl = `${SCRIPT_URL}?q=${encoded}`;
+
+      document.getElementById('generated-url').value = fullUrl;
+      document.getElementById('result-area').classList.remove('hidden');
+    }
+
+    function copyLink() {
+      const copyText = document.getElementById("generated-url");
+      copyText.select();
+      navigator.clipboard.writeText(copyText.value);
+      alert("Link berhasil disalin!");
+    }
+
+    function logout() {
+      location.reload();
+    }
+
+    /* ================= CLIENT LOGIC ================= */
+    function initClientMode() {
+      document.getElementById('page-client').classList.remove('hidden');
+      
+      try {
+        // Decode Config
+        const config = JSON.parse(atob(CLIENT_CONFIG_ENC));
+        document.getElementById('client-title').textContent = config.name;
+
+        // Fetch Data
+        google.script.run
+          .withSuccessHandler(renderFiles)
+          .withFailureHandler(showClientError)
+          .getFolderContents(config.id);
+
+      } catch (e) {
+        showClientError("Data konfigurasi link rusak.");
+      }
+    }
+
+    function showClientError(e) {
+      document.getElementById('client-loading').classList.add('hidden');
+      document.getElementById('client-error').classList.remove('hidden');
+      console.error(e);
+    }
+
+    function renderFiles(files) {
+      document.getElementById('client-loading').classList.add('hidden');
+      const grid = document.getElementById('file-grid');
+      grid.classList.remove('hidden');
+
+      if (files.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400">Folder kosong.</div>`;
+        return;
+      }
+
+      let html = '';
+      files.forEach(file => {
+        const icon = getIcon(file.type);
+        html += `
+          <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative">
+            <div class="aspect-[16/9] bg-slate-50 border-b border-slate-100 flex items-center justify-center relative overflow-hidden">
+              ${file.thumbnail 
+                ? `<img src="${file.thumbnail}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy">` 
+                : `<i class="${icon} text-5xl opacity-30 text-slate-400"></i>`
+              }
+            </div>
+            <div class="p-4">
+              <div class="flex items-start gap-3">
+                <div class="mt-1"><i class="${icon} text-slate-400"></i></div>
+                <div class="flex-1 min-w-0">
+                  <h3 class="font-semibold text-slate-800 text-sm truncate mb-1" title="${file.name}">${file.name}</h3>
+                  <div class="flex items-center gap-2 text-xs text-slate-500">
+                    <span>${file.size}</span>
+                    <span>•</span>
+                    <span>${file.date}</span>
+                  </div>
+                </div>
+              </div>
+              <a href="${file.downloadUrl}" class="mt-4 block w-full bg-brand-50 hover:bg-brand-100 text-brand-600 text-center py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                <i class="fas fa-cloud-arrow-down"></i> Download
+              </a>
+            </div>
+          </div>
+        `;
+      });
+      grid.innerHTML = html;
+    }
+
+    function getIcon(type) {
+      switch(type) {
+        case 'image': return 'fa-regular fa-image text-purple-500';
+        case 'pdf': return 'fa-regular fa-file-pdf text-red-500';
+        case 'video': return 'fa-regular fa-circle-play text-red-600';
+        case 'folder': return 'fa-regular fa-folder text-yellow-500';
+        default: return 'fa-regular fa-file-lines text-blue-400';
+      }
+    }
+  </script>
+</body>
+</html>
