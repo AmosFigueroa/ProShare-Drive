@@ -259,10 +259,15 @@
 
     // MODE DARI SERVER
     // (Akan diinject oleh Google Script saat doGet)
-    // In preview mode, these tags remain as strings, which is fine as it defaults to ADMIN mode.
+    // SCRIPT_URL sekarang diambil otomatis dari deployment
     const APP_MODE = "<?= mode ?>"; 
     const CLIENT_CONFIG_ENC = "<?= clientConfig ?>";
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwuFWkmRl1NPq19Fu7tPKLRdFM6Yt2TybQ627BHqxYjlz6MH8lEPUEtTqbj9QEyLCe-XQ/exec";
+    let SCRIPT_URL = "<?= scriptUrl ?>";
+
+    // Fallback if running locally (preview) where templating doesn't work
+    if (SCRIPT_URL.includes("<?= scriptUrl ?>")) {
+        SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwuFWkmRl1NPq19Fu7tPKLRdFM6Yt2TybQ627BHqxYjlz6MH8lEPUEtTqbj9QEyLCe-XQ/exec";
+    }
 
     /* ================= INITIALIZATION ================= */
     window.onload = function() {
@@ -347,6 +352,7 @@
       const config = { id: folderId, name: name };
       // Encode to Base64 to make url parameter
       const encoded = btoa(JSON.stringify(config));
+      // Use the injected SCRIPT_URL which is the actual hosting URL
       const fullUrl = `${SCRIPT_URL}?q=${encoded}`;
 
       document.getElementById('generated-url').value = fullUrl;
