@@ -129,8 +129,8 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700 mb-1">ID Folder Google Drive</label>
-            <input type="text" id="cfg-folder-id" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none" placeholder="1vKz...">
+            <label class="block text-sm font-medium text-slate-700 mb-1">ID Folder atau Link Folder Google Drive</label>
+            <input type="text" id="cfg-folder-id" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-brand-500 outline-none" placeholder="Paste link folder di sini...">
             <p class="text-xs text-slate-400 mt-1">Pastikan folder diatur ke "Anyone with the link can view".</p>
           </div>
 
@@ -205,72 +205,16 @@
 
   <!-- LOGIC SCRIPT -->
   <script>
-    /* ================= MOCK GOOGLE OBJECT FOR PREVIEW ================= */
-    // This allows the app to work in preview mode by simulating Google Apps Script server calls
-    if (typeof google === 'undefined') {
-      console.warn("Google Apps Script environment not detected. Mocking server calls.");
-      window.google = {
-        script: {
-          run: {
-            withSuccessHandler: function(fn) {
-              this._success = fn;
-              return this;
-            },
-            withFailureHandler: function(fn) {
-              this._failure = fn;
-              return this;
-            },
-            sendLoginOtp: function(email) {
-              console.log("[MOCK] Sending OTP to " + email);
-              setTimeout(() => {
-                if (this._success) this._success(); 
-                this._reset();
-              }, 1000);
-            },
-            verifyLoginOtp: function(email, code) {
-              console.log("[MOCK] Verifying OTP " + code);
-               setTimeout(() => {
-                // Mock success for any OTP in preview
-                if (this._success) this._success();
-                this._reset();
-              }, 1000);
-            },
-            getFolderContents: function(id) {
-              console.log("[MOCK] Fetching folder " + id);
-              const mockFiles = [
-                 {id: '1', name: 'Project_Proposal.pdf', size: '2.4 MB', date: '10 Mei 2024', type: 'pdf', mimeType: 'application/pdf', thumbnail: null, downloadUrl: '#'},
-                 {id: '2', name: 'Site_Render.jpg', size: '5.1 MB', date: '12 Mei 2024', type: 'image', mimeType: 'image/jpeg', thumbnail: 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800&auto=format&fit=crop&q=60', downloadUrl: '#'},
-                 {id: '3', name: 'Contract_Draft.docx', size: '150 KB', date: '08 Mei 2024', type: 'file', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', thumbnail: null, downloadUrl: '#'},
-                 {id: '4', name: 'Assets.zip', size: '120 MB', date: '09 Mei 2024', type: 'file', mimeType: 'application/zip', thumbnail: null, downloadUrl: '#'}
-              ];
-              setTimeout(() => {
-                if (this._success) this._success(mockFiles);
-                this._reset();
-              }, 1000);
-            },
-            _reset: function() {
-              this._success = null;
-              this._failure = null;
-            }
-          }
-        }
-      };
-    }
-
     // MODE DARI SERVER
     // (Akan diinject oleh Google Script saat doGet)
-    // SCRIPT_URL sekarang diambil otomatis dari deployment
     const APP_MODE = "<?= mode ?>"; 
     const CLIENT_CONFIG_ENC = "<?= clientConfig ?>";
     let SCRIPT_URL = "<?= scriptUrl ?>";
 
-    // Fallback if running locally (preview) where templating doesn't work
-    if (SCRIPT_URL.includes("<?= scriptUrl ?>")) {
-        SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwuFWkmRl1NPq19Fu7tPKLRdFM6Yt2TybQ627BHqxYjlz6MH8lEPUEtTqbj9QEyLCe-XQ/exec";
-    }
-
     /* ================= INITIALIZATION ================= */
     window.onload = function() {
+      // Jika mode adalah CLIENT dan ada konfigurasi, masuk ke Client Mode
+      // Pengecekan !== "<?= ... ?>" memastikan template string berhasil di-replace oleh server
       if (APP_MODE === 'CLIENT' && CLIENT_CONFIG_ENC && CLIENT_CONFIG_ENC !== "<?= clientConfig ?>") {
         initClientMode();
       } else {
@@ -288,7 +232,10 @@
       const btn = document.getElementById('btn-send-otp');
       const err = document.getElementById('login-error');
       
-      if (!email) return;
+      if (!email) {
+        alert("Silakan masukkan email.");
+        return;
+      }
 
       btn.innerHTML = '<div class="loader w-4 h-4 border-white/30 border-t-white mr-2"></div> Sending...';
       btn.disabled = true;
@@ -300,7 +247,7 @@
           document.getElementById('login-step-2').classList.remove('hidden');
         })
         .withFailureHandler((e) => {
-          err.textContent = e.message || e;
+          err.textContent = e.message || "Gagal mengirim OTP. Pastikan email terdaftar.";
           err.classList.remove('hidden');
           btn.innerHTML = 'Kirim Kode OTP';
           btn.disabled = false;
@@ -314,6 +261,11 @@
       const btn = document.getElementById('btn-verify-otp');
       const err = document.getElementById('login-error');
 
+      if (!code) {
+        alert("Masukkan kode OTP.");
+        return;
+      }
+
       btn.innerHTML = 'Verifikasi...';
       btn.disabled = true;
 
@@ -323,7 +275,7 @@
           document.getElementById('page-admin').classList.remove('hidden');
         })
         .withFailureHandler((e) => {
-          err.textContent = e.message || e;
+          err.textContent = e.message || "Verifikasi gagal.";
           err.classList.remove('hidden');
           btn.innerHTML = 'Verifikasi Masuk';
           btn.disabled = false;
@@ -337,6 +289,7 @@
       document.getElementById('btn-send-otp').innerHTML = 'Kirim Kode OTP';
       document.getElementById('btn-send-otp').disabled = false;
       document.getElementById('otp-code').value = '';
+      document.getElementById('login-error').classList.add('hidden');
     }
 
     function generateLink() {
@@ -344,7 +297,7 @@
       const name = document.getElementById('cfg-client-name').value;
       
       if(!folderId || !name) {
-        alert("Mohon lengkapi semua data");
+        alert("Mohon lengkapi nama client dan link folder.");
         return;
       }
 
@@ -379,7 +332,7 @@
         const config = JSON.parse(atob(CLIENT_CONFIG_ENC));
         document.getElementById('client-title').textContent = config.name;
 
-        // Fetch Data
+        // Fetch Data from Server
         google.script.run
           .withSuccessHandler(renderFiles)
           .withFailureHandler(showClientError)
@@ -401,8 +354,8 @@
       const grid = document.getElementById('file-grid');
       grid.classList.remove('hidden');
 
-      if (files.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400">Folder kosong.</div>`;
+      if (!files || files.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-10 text-slate-400">Folder kosong atau tidak dapat diakses.</div>`;
         return;
       }
 
@@ -413,7 +366,7 @@
           <div class="group bg-white rounded-2xl border border-slate-100 overflow-hidden hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative">
             <div class="aspect-[16/9] bg-slate-50 border-b border-slate-100 flex items-center justify-center relative overflow-hidden">
               ${file.thumbnail 
-                ? `<img src="${file.thumbnail}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy">` 
+                ? `<img src="${file.thumbnail}" class="w-full h-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" onerror="this.onerror=null;this.parentElement.innerHTML='<i class=\\'${icon} text-5xl opacity-30 text-slate-400\\'></i>'">` 
                 : `<i class="${icon} text-5xl opacity-30 text-slate-400"></i>`
               }
             </div>
@@ -430,7 +383,7 @@
                 </div>
               </div>
               <a href="${file.downloadUrl}" class="mt-4 block w-full bg-brand-50 hover:bg-brand-100 text-brand-600 text-center py-2 rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-                <i class="fas fa-cloud-arrow-down"></i> Download
+                <i class="fas fa-cloud-arrow-down"></i> ${file.type === 'folder' ? 'Buka Folder' : 'Download'}
               </a>
             </div>
           </div>

@@ -62,6 +62,7 @@ function doGet(e) {
 function sendLoginOtp(email) {
   if (!email) throw new Error("Email tidak boleh kosong.");
   
+  // Normalisasi email (hapus spasi & huruf kecil semua)
   const cleanEmail = email.trim().toLowerCase();
   
   // Dapatkan email pemilik script saat ini (developer) untuk bypass whitelist saat testing
@@ -72,7 +73,7 @@ function sendLoginOtp(email) {
   
   if (!isAllowed) {
     // Delay sedikit untuk mencegah brute force timing attack (security)
-    Utilities.sleep(1000); 
+    Utilities.sleep(2000); 
     throw new Error("Akses ditolak: Email tidak terdaftar dalam sistem.");
   }
 
@@ -99,7 +100,9 @@ function sendLoginOtp(email) {
       `
     });
   } catch (e) {
-    throw new Error("Gagal mengirim email. Pastikan Anda telah memberikan izin akses Gmail. Detail: " + e.message);
+    // Log error untuk developer
+    Logger.log("Send Email Error: " + e.toString());
+    throw new Error("Gagal mengirim email OTP. Kuota email mungkin habis atau izin belum diberikan.");
   }
   
   return { success: true, message: "OTP Terkirim ke " + cleanEmail };
@@ -109,11 +112,14 @@ function sendLoginOtp(email) {
  * API: Verifikasi OTP
  */
 function verifyLoginOtp(email, inputOtp) {
+  if(!email || !inputOtp) throw new Error("Data tidak lengkap.");
+
   const cleanEmail = email.trim().toLowerCase();
   const props = PropertiesService.getScriptProperties();
   const savedOtp = props.getProperty('OTP_' + cleanEmail);
   
-  if (savedOtp && savedOtp === inputOtp.toString()) {
+  // Pastikan inputOtp dikonversi ke string untuk perbandingan aman
+  if (savedOtp && savedOtp === String(inputOtp).trim()) {
     // Hapus OTP agar tidak bisa dipakai ulang (Replay Attack Protection)
     props.deleteProperty('OTP_' + cleanEmail);
     // Return token sederhana
