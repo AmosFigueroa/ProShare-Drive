@@ -205,15 +205,68 @@
 
   <!-- LOGIC SCRIPT -->
   <script>
+    /* ================= MOCK GOOGLE OBJECT FOR PREVIEW ================= */
+    // This allows the app to work in preview mode by simulating Google Apps Script server calls
+    if (typeof google === 'undefined') {
+      console.warn("Google Apps Script environment not detected. Mocking server calls.");
+      window.google = {
+        script: {
+          run: {
+            withSuccessHandler: function(fn) {
+              this._success = fn;
+              return this;
+            },
+            withFailureHandler: function(fn) {
+              this._failure = fn;
+              return this;
+            },
+            sendLoginOtp: function(email) {
+              console.log("[MOCK] Sending OTP to " + email);
+              setTimeout(() => {
+                if (this._success) this._success(); 
+                this._reset();
+              }, 1000);
+            },
+            verifyLoginOtp: function(email, code) {
+              console.log("[MOCK] Verifying OTP " + code);
+               setTimeout(() => {
+                // Mock success for any OTP in preview
+                if (this._success) this._success();
+                this._reset();
+              }, 1000);
+            },
+            getFolderContents: function(id) {
+              console.log("[MOCK] Fetching folder " + id);
+              const mockFiles = [
+                 {id: '1', name: 'Project_Proposal.pdf', size: '2.4 MB', date: '10 Mei 2024', type: 'pdf', mimeType: 'application/pdf', thumbnail: null, downloadUrl: '#'},
+                 {id: '2', name: 'Site_Render.jpg', size: '5.1 MB', date: '12 Mei 2024', type: 'image', mimeType: 'image/jpeg', thumbnail: 'https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800&auto=format&fit=crop&q=60', downloadUrl: '#'},
+                 {id: '3', name: 'Contract_Draft.docx', size: '150 KB', date: '08 Mei 2024', type: 'file', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', thumbnail: null, downloadUrl: '#'},
+                 {id: '4', name: 'Assets.zip', size: '120 MB', date: '09 Mei 2024', type: 'file', mimeType: 'application/zip', thumbnail: null, downloadUrl: '#'}
+              ];
+              setTimeout(() => {
+                if (this._success) this._success(mockFiles);
+                this._reset();
+              }, 1000);
+            },
+            _reset: function() {
+              this._success = null;
+              this._failure = null;
+            }
+          }
+        }
+      };
+    }
+
     // MODE DARI SERVER
     // (Akan diinject oleh Google Script saat doGet)
+    // In preview mode, these tags remain as strings, which is fine as it defaults to ADMIN mode.
     const APP_MODE = "<?= mode ?>"; 
     const CLIENT_CONFIG_ENC = "<?= clientConfig ?>";
     const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwuFWkmRl1NPq19Fu7tPKLRdFM6Yt2TybQ627BHqxYjlz6MH8lEPUEtTqbj9QEyLCe-XQ/exec";
 
     /* ================= INITIALIZATION ================= */
     window.onload = function() {
-      if (APP_MODE === 'CLIENT' && CLIENT_CONFIG_ENC) {
+      if (APP_MODE === 'CLIENT' && CLIENT_CONFIG_ENC && CLIENT_CONFIG_ENC !== "<?= clientConfig ?>") {
         initClientMode();
       } else {
         initAdminMode();
@@ -242,7 +295,7 @@
           document.getElementById('login-step-2').classList.remove('hidden');
         })
         .withFailureHandler((e) => {
-          err.textContent = e.message;
+          err.textContent = e.message || e;
           err.classList.remove('hidden');
           btn.innerHTML = 'Kirim Kode OTP';
           btn.disabled = false;
@@ -265,7 +318,7 @@
           document.getElementById('page-admin').classList.remove('hidden');
         })
         .withFailureHandler((e) => {
-          err.textContent = e.message;
+          err.textContent = e.message || e;
           err.classList.remove('hidden');
           btn.innerHTML = 'Verifikasi Masuk';
           btn.disabled = false;
